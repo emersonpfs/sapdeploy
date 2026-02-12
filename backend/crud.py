@@ -62,6 +62,10 @@ def create_server(db: Session, server: schemas.ServerCreate) -> models.Server:
     if server_data.get("password"):
         server_data["password"] = encrypt_password(server_data["password"])
     
+    # Encrypt SSH key if provided
+    if server_data.get("ssh_key_content"):
+        server_data["ssh_key_content"] = encrypt_password(server_data["ssh_key_content"])
+    
     db_server = models.Server(**server_data)
     db.add(db_server)
     db.commit()
@@ -75,6 +79,10 @@ def update_server(db: Session, server_id: int, server: schemas.ServerUpdate) -> 
         # Encrypt password if provided
         if update_data.get("password"):
             update_data["password"] = encrypt_password(update_data["password"])
+        
+        # Encrypt SSH key if provided
+        if update_data.get("ssh_key_content"):
+            update_data["ssh_key_content"] = encrypt_password(update_data["ssh_key_content"])
         
         for key, value in update_data.items():
             setattr(db_server, key, value)

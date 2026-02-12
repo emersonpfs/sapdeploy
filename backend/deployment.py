@@ -28,9 +28,13 @@ class DeploymentExecutor:
             
             log_callback(f"🔌 Connecting to {server.hostname} ({server.ip_address})...\n")
             
-            # Connect with password or key
-            if server.private_key_path:
-                key = paramiko.RSAKey.from_private_key_file(server.private_key_path)
+            # Connect with SSH key or password
+            if server.ssh_key_content:
+                # Decrypt and load SSH key from content
+                decrypted_key_content = decrypt_password(server.ssh_key_content)
+                from io import StringIO
+                key_file = StringIO(decrypted_key_content)
+                key = paramiko.RSAKey.from_private_key(key_file)
                 ssh.connect(
                     hostname=server.ip_address,
                     port=server.port,

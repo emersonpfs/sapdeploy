@@ -53,9 +53,9 @@ class Server(Base):
     ip_address = Column(String)
     os_type = Column(Enum(OSType))
     username = Column(String)
-    # Store encrypted password or key path
+    # Store encrypted password or SSH key content
     password = Column(String, nullable=True)
-    private_key_path = Column(String, nullable=True)
+    ssh_key_content = Column(Text, nullable=True)  # Store SSH key content (encrypted)
     port = Column(Integer, default=22)  # SSH port for Linux, WinRM port for Windows
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

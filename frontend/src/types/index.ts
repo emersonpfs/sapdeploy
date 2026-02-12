@@ -61,7 +61,7 @@ export interface ServerCreate {
   os_type: OSType;
   username: string;
   password?: string;
-  private_key_path?: string;
+  ssh_key_content?: string;
   port: number;
 }
 

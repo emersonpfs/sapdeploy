@@ -40,7 +40,7 @@ class ServerBase(BaseModel):
     os_type: OSType
     username: str
     password: Optional[str] = None
-    private_key_path: Optional[str] = None
+    ssh_key_content: Optional[str] = None
     port: int = Field(default=22)
 
 class ServerCreate(ServerBase):
@@ -52,15 +52,16 @@ class ServerUpdate(BaseModel):
     os_type: Optional[OSType] = None
     username: Optional[str] = None
     password: Optional[str] = None
-    private_key_path: Optional[str] = None
+    ssh_key_content: Optional[str] = None
     port: Optional[int] = None
 
 class Server(ServerBase):
     id: int
     created_at: datetime
     updated_at: datetime
-    # Don't expose password in responses
+    # Don't expose password or SSH key in responses
     password: Optional[str] = Field(exclude=True)
+    ssh_key_content: Optional[str] = Field(exclude=True)
     
     class Config:
         from_attributes = True
