@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState, useEffect, useRef } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { execCommand, getConsoleJobs, getJob } from '@/lib/api';
 import type { Agent, ConsoleJob } from '@/types';
@@ -17,12 +17,7 @@ interface ConsoleEntry {
   status: ConsoleJob['status'];
 }
 
-function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString('pt-BR');
-}
-
 export function AgentConsole({ agent, onClose }: Props) {
-  const queryClient = useQueryClient();
   const [input, setInput] = useState('');
   const [entries, setEntries] = useState<ConsoleEntry[]>([]);
   const [history, setHistory] = useState<string[]>([]);
