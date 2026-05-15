@@ -1,79 +1,47 @@
-from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Depends, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
-from typing import List
-import asyncio
-import json
-
+from typing import List, Optional
 import models
 import schemas
 import crud
 from database import engine, get_db
-from deployment import DeploymentExecutor
+import os
 
-# Create database tables
 models.Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="DeployMaster", version="1.0.0")
+app = FastAPI(title="DeployMaster", version="2.0.0")
 
-# CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],  # Vite default port
+    allow_origins=["http://localhost:5173", "http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# WebSocket connection manager
-class ConnectionManager:
-    def __init__(self):
-        self.active_connections: dict[int, WebSocket] = {}
-
-    async def connect(self, deployment_id: int, websocket: WebSocket):
-        await websocket.accept()
-        self.active_connections[deployment_id] = websocket
-
-    def disconnect(self, deployment_id: int):
-        if deployment_id in self.active_connections:
-            del self.active_connections[deployment_id]
-
-    async def send_log(self, deployment_id: int, message: str):
-        if deployment_id in self.active_connections:
-            try:
-                await self.active_connections[deployment_id].send_text(message)
-            except:
-                self.disconnect(deployment_id)
-
-manager = ConnectionManager()
+SERVER_URL = os.getenv("SERVER_URL", "http://localhost:9090")
 
 # ==================== Applications ====================
 
 @app.get("/api/applications", response_model=List[schemas.Application])
-def list_applications(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    """Get all applications"""
-    return crud.get_applications(db, skip=skip, limit=limit)
+def list_applications(db: Session = Depends(get_db)):
+    return crud.get_applications(db)
 
 @app.get("/api/applications/{application_id}", response_model=schemas.Application)
 def get_application(application_id: int, db: Session = Depends(get_db)):
-    """Get specific application"""
-    application = crud.get_application(db, application_id)
-    if not application:
+    app_obj = crud.get_application(db, application_id)
+    if not app_obj:
         raise HTTPException(status_code=404, detail="Application not found")
-    return application
+    return app_obj
 
 @app.post("/api/applications", response_model=schemas.Application, status_code=201)
 def create_application(application: schemas.ApplicationCreate, db: Session = Depends(get_db)):
-    """Create new application"""
     return crud.create_application(db, application)
 
 @app.put("/api/applications/{application_id}", response_model=schemas.Application)
-def update_application(
-    application_id: int,
-    application: schemas.ApplicationUpdate,
-    db: Session = Depends(get_db)
-):
-    """Update application"""
+def update_application(application_id: int, application: schemas.ApplicationUpdate, db: Session = Depends(get_db)):
     updated = crud.update_application(db, application_id, application)
     if not updated:
         raise HTTPException(status_code=404, detail="Application not found")
@@ -81,164 +49,146 @@ def update_application(
 
 @app.delete("/api/applications/{application_id}")
 def delete_application(application_id: int, db: Session = Depends(get_db)):
-    """Delete application"""
     if not crud.delete_application(db, application_id):
         raise HTTPException(status_code=404, detail="Application not found")
-    return {"message": "Application deleted successfully"}
+    return {"message": "Deleted"}
 
-# ==================== Servers ====================
+# ==================== Agents (UI) ====================
 
-@app.get("/api/servers", response_model=List[schemas.Server])
-def list_servers(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    """Get all servers"""
-    return crud.get_servers(db, skip=skip, limit=limit)
+@app.get("/api/agents", response_model=List[schemas.AgentOut])
+def list_agents(db: Session = Depends(get_db)):
+    return crud.get_agents(db)
 
-@app.get("/api/servers/{server_id}", response_model=schemas.Server)
-def get_server(server_id: int, db: Session = Depends(get_db)):
-    """Get specific server"""
-    server = crud.get_server(db, server_id)
-    if not server:
-        raise HTTPException(status_code=404, detail="Server not found")
-    return server
+@app.post("/api/agents", response_model=schemas.AgentRegisterResponse, status_code=201)
+def create_agent(agent: schemas.AgentCreate, db: Session = Depends(get_db)):
+    db_agent = crud.create_agent(db, agent)
+    return schemas.AgentRegisterResponse(
+        id=db_agent.id,
+        name=db_agent.name,
+        token=db_agent.token,
+        install_command_linux=f"./agent-linux-amd64 --server {SERVER_URL} --token {db_agent.token}",
+        install_command_windows=f".\\agent-windows-amd64.exe --server {SERVER_URL} --token {db_agent.token}"
+    )
 
-@app.post("/api/servers", response_model=schemas.Server, status_code=201)
-def create_server(server: schemas.ServerCreate, db: Session = Depends(get_db)):
-    """Create new server"""
-    return crud.create_server(db, server)
+@app.get("/api/agents/download/{platform}")
+def download_agent(platform: str):
+    """Download pre-built agent binary for the given platform."""
+    filenames = {
+        "linux-amd64":   ("agent-linux-amd64",       "agent-linux-amd64"),
+        "linux-arm64":   ("agent-linux-arm64",        "agent-linux-arm64"),
+        "windows-amd64": ("agent-windows-amd64.exe",  "agent-windows-amd64.exe"),
+    }
+    if platform not in filenames:
+        raise HTTPException(status_code=404, detail="Platform not found. Valid: linux-amd64, linux-arm64, windows-amd64")
 
-@app.put("/api/servers/{server_id}", response_model=schemas.Server)
-def update_server(
-    server_id: int,
-    server: schemas.ServerUpdate,
+    disk_name, download_name = filenames[platform]
+    # Look in ../agent/dist/ relative to this file
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    binary_path = os.path.join(base_dir, "..", "agent", "dist", disk_name)
+
+    if not os.path.isfile(binary_path):
+        raise HTTPException(
+            status_code=404,
+            detail=f"Binary not built yet. Run 'cd agent && ./build.sh' to compile the agents."
+        )
+
+    return FileResponse(
+        path=binary_path,
+        filename=download_name,
+        media_type="application/octet-stream"
+    )
+
+@app.delete("/api/agents/{agent_id}")
+def delete_agent(agent_id: int, db: Session = Depends(get_db)):
+    if not crud.delete_agent(db, agent_id):
+        raise HTTPException(status_code=404, detail="Agent not found")
+    return {"message": "Deleted"}
+
+# ==================== Agent API (called by agent binary) ====================
+
+def get_agent_from_token(x_agent_token: Optional[str] = Header(None), db: Session = Depends(get_db)):
+    if not x_agent_token:
+        raise HTTPException(status_code=401, detail="Missing X-Agent-Token header")
+    agent = crud.get_agent_by_token(db, x_agent_token)
+    if not agent:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    return agent
+
+@app.post("/api/agent/heartbeat")
+def agent_heartbeat(
+    heartbeat: schemas.AgentHeartbeat,
+    agent: models.Agent = Depends(get_agent_from_token),
     db: Session = Depends(get_db)
 ):
-    """Update server"""
-    updated = crud.update_server(db, server_id, server)
-    if not updated:
-        raise HTTPException(status_code=404, detail="Server not found")
-    return updated
+    crud.update_agent_heartbeat(db, agent, heartbeat)
+    return {"status": "ok"}
 
-@app.delete("/api/servers/{server_id}")
-def delete_server(server_id: int, db: Session = Depends(get_db)):
-    """Delete server"""
-    if not crud.delete_server(db, server_id):
-        raise HTTPException(status_code=404, detail="Server not found")
-    return {"message": "Server deleted successfully"}
+@app.get("/api/agent/jobs/pending")
+def get_pending_job(
+    agent: models.Agent = Depends(get_agent_from_token),
+    db: Session = Depends(get_db)
+):
+    job = crud.get_pending_job_for_agent(db, agent.id)
+    if not job:
+        return None
+    return schemas.PendingJob(
+        id=job.id,
+        application_name=job.application.name,
+        install_command=job.application.install_command,
+        install_parameters=job.application.install_parameters
+    )
+
+@app.post("/api/agent/jobs/{job_id}/logs")
+def append_job_logs(
+    job_id: int,
+    body: schemas.JobLogAppend,
+    agent: models.Agent = Depends(get_agent_from_token),
+    db: Session = Depends(get_db)
+):
+    job = crud.get_job(db, job_id)
+    if not job or job.agent_id != agent.id:
+        raise HTTPException(status_code=404, detail="Job not found")
+    crud.append_job_logs(db, job, body.logs)
+    return {"status": "ok"}
+
+@app.patch("/api/agent/jobs/{job_id}/status")
+def update_job_status(
+    job_id: int,
+    body: schemas.JobStatusUpdate,
+    agent: models.Agent = Depends(get_agent_from_token),
+    db: Session = Depends(get_db)
+):
+    job = crud.get_job(db, job_id)
+    if not job or job.agent_id != agent.id:
+        raise HTTPException(status_code=404, detail="Job not found")
+    crud.update_job_status(db, job, body.status, body.error_message)
+    return {"status": "ok"}
 
 # ==================== Deployments ====================
 
 @app.get("/api/deployments", response_model=List[schemas.Deployment])
-def list_deployments(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    """Get all deployments"""
-    return crud.get_deployments(db, skip=skip, limit=limit)
+def list_deployments(db: Session = Depends(get_db)):
+    return crud.get_deployments(db)
 
 @app.get("/api/deployments/{deployment_id}", response_model=schemas.Deployment)
 def get_deployment(deployment_id: int, db: Session = Depends(get_db)):
-    """Get specific deployment"""
-    deployment = crud.get_deployment(db, deployment_id)
-    if not deployment:
+    d = crud.get_deployment(db, deployment_id)
+    if not d:
         raise HTTPException(status_code=404, detail="Deployment not found")
-    return deployment
+    return d
 
 @app.post("/api/deployments", response_model=schemas.Deployment, status_code=201)
-async def create_deployment(
-    deployment: schemas.DeploymentCreate,
-    db: Session = Depends(get_db)
-):
-    """Create and execute new deployment"""
-    # Create deployment record
-    db_deployment = crud.create_deployment(db, deployment)
-    
-    # Start deployment in background
-    asyncio.create_task(execute_deployment_background(db_deployment.id, db_deployment))
-    
-    return db_deployment
-
-async def execute_deployment_background(deployment_id: int, deployment: models.Deployment):
-    """Execute deployment in background with live logging"""
-    from database import SessionLocal
-    db = SessionLocal()
-    
-    try:
-        # Update status to running
-        crud.update_deployment_status(db, deployment_id, models.DeploymentStatus.RUNNING)
-        
-        all_success = True
-        
-        # Execute for each server x application combination
-        for server in deployment.servers:
-            for application in deployment.applications:
-                # Check OS compatibility
-                if server.os_type != application.os_type:
-                    log_msg = f"⚠️  Skipping {application.name} on {server.hostname} - OS type mismatch\n"
-                    await manager.send_log(deployment_id, log_msg)
-                    crud.update_deployment_status(db, deployment_id, models.DeploymentStatus.RUNNING, log_msg)
-                    continue
-                
-                # Create log callback
-                async def log_callback(message: str):
-                    await manager.send_log(deployment_id, message)
-                    crud.update_deployment_status(db, deployment_id, models.DeploymentStatus.RUNNING, message)
-                
-                # Execute deployment
-                success, output = await DeploymentExecutor.execute_deployment_async(
-                    server, application, log_callback
-                )
-                
-                if not success:
-                    all_success = False
-        
-        # Update final status
-        final_status = models.DeploymentStatus.SUCCESS if all_success else models.DeploymentStatus.FAILED
-        crud.update_deployment_status(
-            db, 
-            deployment_id, 
-            final_status,
-            error_message=None if all_success else "Some deployments failed"
-        )
-        
-        # Send completion message
-        await manager.send_log(
-            deployment_id, 
-            f"\n{'='*60}\n✅ Deployment completed!\n{'='*60}\n"
-        )
-        
-    except Exception as e:
-        error_msg = f"Deployment error: {str(e)}"
-        crud.update_deployment_status(
-            db, 
-            deployment_id, 
-            models.DeploymentStatus.FAILED,
-            error_message=error_msg
-        )
-        await manager.send_log(deployment_id, f"\n❌ {error_msg}\n")
-    
-    finally:
-        db.close()
-
-@app.websocket("/ws/deployments/{deployment_id}")
-async def deployment_websocket(websocket: WebSocket, deployment_id: int):
-    """WebSocket endpoint for live deployment logs"""
-    await manager.connect(deployment_id, websocket)
-    try:
-        while True:
-            # Keep connection alive
-            await websocket.receive_text()
-    except WebSocketDisconnect:
-        manager.disconnect(deployment_id)
+def create_deployment(deployment: schemas.DeploymentCreate, db: Session = Depends(get_db)):
+    return crud.create_deployment(db, deployment)
 
 # ==================== Dashboard ====================
 
 @app.get("/api/dashboard", response_model=schemas.DashboardStats)
 def get_dashboard_stats(db: Session = Depends(get_db)):
-    """Get dashboard statistics"""
     return crud.get_dashboard_stats(db)
-
-# ==================== Health Check ====================
 
 @app.get("/api/health")
 def health_check():
-    """Health check endpoint"""
     return {"status": "healthy"}
 
 if __name__ == "__main__":

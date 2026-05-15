@@ -2,170 +2,180 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 import models
 import schemas
-from cryptography.fernet import Fernet
-import os
-
-# Simple encryption key (in production, use env variable)
-ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY", Fernet.generate_key())
-cipher = Fernet(ENCRYPTION_KEY)
-
-def encrypt_password(password: str) -> str:
-    """Encrypt password for storage"""
-    return cipher.encrypt(password.encode()).decode()
-
-def decrypt_password(encrypted_password: str) -> str:
-    """Decrypt password for use"""
-    return cipher.decrypt(encrypted_password.encode()).decode()
+import uuid
+from datetime import datetime, timedelta
 
 # Application CRUD
-def get_applications(db: Session, skip: int = 0, limit: int = 100) -> List[models.Application]:
+def get_applications(db: Session, skip: int = 0, limit: int = 100):
     return db.query(models.Application).offset(skip).limit(limit).all()
 
-def get_application(db: Session, application_id: int) -> Optional[models.Application]:
+def get_application(db: Session, application_id: int):
     return db.query(models.Application).filter(models.Application.id == application_id).first()
 
-def create_application(db: Session, application: schemas.ApplicationCreate) -> models.Application:
-    db_application = models.Application(**application.model_dump())
-    db.add(db_application)
+def create_application(db: Session, application: schemas.ApplicationCreate):
+    db_app = models.Application(**application.model_dump())
+    db.add(db_app)
     db.commit()
-    db.refresh(db_application)
-    return db_application
+    db.refresh(db_app)
+    return db_app
 
-def update_application(db: Session, application_id: int, application: schemas.ApplicationUpdate) -> Optional[models.Application]:
-    db_application = get_application(db, application_id)
-    if db_application:
-        update_data = application.model_dump(exclude_unset=True)
-        for key, value in update_data.items():
-            setattr(db_application, key, value)
+def update_application(db: Session, application_id: int, application: schemas.ApplicationUpdate):
+    db_app = get_application(db, application_id)
+    if db_app:
+        for key, value in application.model_dump(exclude_unset=True).items():
+            setattr(db_app, key, value)
         db.commit()
-        db.refresh(db_application)
-    return db_application
+        db.refresh(db_app)
+    return db_app
 
-def delete_application(db: Session, application_id: int) -> bool:
-    db_application = get_application(db, application_id)
-    if db_application:
-        db.delete(db_application)
+def delete_application(db: Session, application_id: int):
+    db_app = get_application(db, application_id)
+    if db_app:
+        db.delete(db_app)
         db.commit()
         return True
     return False
 
-# Server CRUD
-def get_servers(db: Session, skip: int = 0, limit: int = 100) -> List[models.Server]:
-    return db.query(models.Server).offset(skip).limit(limit).all()
-
-def get_server(db: Session, server_id: int) -> Optional[models.Server]:
-    return db.query(models.Server).filter(models.Server.id == server_id).first()
-
-def create_server(db: Session, server: schemas.ServerCreate) -> models.Server:
-    server_data = server.model_dump()
-    # Encrypt password if provided
-    if server_data.get("password"):
-        server_data["password"] = encrypt_password(server_data["password"])
-    
-    # Encrypt SSH key if provided
-    if server_data.get("ssh_key_content"):
-        server_data["ssh_key_content"] = encrypt_password(server_data["ssh_key_content"])
-    
-    db_server = models.Server(**server_data)
-    db.add(db_server)
+# Agent CRUD
+def get_agents(db: Session):
+    agents = db.query(models.Agent).all()
+    # Update online/offline status based on last_seen
+    threshold = datetime.utcnow() - timedelta(seconds=30)
+    for agent in agents:
+        if agent.last_seen and agent.last_seen > threshold:
+            agent.status = models.AgentStatus.ONLINE
+        else:
+            agent.status = models.AgentStatus.OFFLINE
     db.commit()
-    db.refresh(db_server)
-    return db_server
+    return agents
 
-def update_server(db: Session, server_id: int, server: schemas.ServerUpdate) -> Optional[models.Server]:
-    db_server = get_server(db, server_id)
-    if db_server:
-        update_data = server.model_dump(exclude_unset=True)
-        # Encrypt password if provided
-        if update_data.get("password"):
-            update_data["password"] = encrypt_password(update_data["password"])
-        
-        # Encrypt SSH key if provided
-        if update_data.get("ssh_key_content"):
-            update_data["ssh_key_content"] = encrypt_password(update_data["ssh_key_content"])
-        
-        for key, value in update_data.items():
-            setattr(db_server, key, value)
-        db.commit()
-        db.refresh(db_server)
-    return db_server
+def get_agent_by_token(db: Session, token: str):
+    return db.query(models.Agent).filter(models.Agent.token == token).first()
 
-def delete_server(db: Session, server_id: int) -> bool:
-    db_server = get_server(db, server_id)
-    if db_server:
-        db.delete(db_server)
+def get_agent(db: Session, agent_id: int):
+    return db.query(models.Agent).filter(models.Agent.id == agent_id).first()
+
+def create_agent(db: Session, agent: schemas.AgentCreate):
+    token = str(uuid.uuid4())
+    db_agent = models.Agent(name=agent.name, token=token)
+    db.add(db_agent)
+    db.commit()
+    db.refresh(db_agent)
+    return db_agent
+
+def delete_agent(db: Session, agent_id: int):
+    db_agent = get_agent(db, agent_id)
+    if db_agent:
+        db.delete(db_agent)
         db.commit()
         return True
     return False
+
+def update_agent_heartbeat(db: Session, agent: models.Agent, heartbeat: schemas.AgentHeartbeat):
+    agent.hostname = heartbeat.hostname
+    agent.ip_address = heartbeat.ip_address
+    agent.os_type = heartbeat.os_type
+    agent.last_seen = datetime.utcnow()
+    agent.status = models.AgentStatus.ONLINE
+    db.commit()
+    db.refresh(agent)
+    return agent
+
+# Job CRUD
+def get_pending_job_for_agent(db: Session, agent_id: int):
+    return db.query(models.Job).filter(
+        models.Job.agent_id == agent_id,
+        models.Job.status == models.JobStatus.PENDING
+    ).first()
+
+def get_job(db: Session, job_id: int):
+    return db.query(models.Job).filter(models.Job.id == job_id).first()
+
+def append_job_logs(db: Session, job: models.Job, logs: str):
+    job.logs += logs
+    if job.status == models.JobStatus.PENDING:
+        job.status = models.JobStatus.RUNNING
+        job.started_at = datetime.utcnow()
+    db.commit()
+
+def update_job_status(db: Session, job: models.Job, status: models.JobStatus, error_message: str = None):
+    job.status = status
+    job.completed_at = datetime.utcnow()
+    if error_message:
+        job.error_message = error_message
+    db.commit()
+    db.refresh(job)
+    # Check if all jobs in deployment are done, update deployment status
+    _update_deployment_status(db, job.deployment_id)
+    return job
+
+def _update_deployment_status(db: Session, deployment_id: int):
+    deployment = db.query(models.Deployment).filter(models.Deployment.id == deployment_id).first()
+    if not deployment:
+        return
+    jobs = deployment.jobs
+    if not jobs:
+        return
+    statuses = [j.status for j in jobs]
+    if all(s in [models.JobStatus.SUCCESS, models.JobStatus.FAILED] for s in statuses):
+        if any(s == models.JobStatus.FAILED for s in statuses):
+            deployment.status = models.DeploymentStatus.FAILED
+        else:
+            deployment.status = models.DeploymentStatus.SUCCESS
+        deployment.completed_at = datetime.utcnow()
+        db.commit()
 
 # Deployment CRUD
-def get_deployments(db: Session, skip: int = 0, limit: int = 100) -> List[models.Deployment]:
-    return db.query(models.Deployment).offset(skip).limit(limit).order_by(models.Deployment.started_at.desc()).all()
+def get_deployments(db: Session, skip: int = 0, limit: int = 100):
+    return db.query(models.Deployment).order_by(models.Deployment.started_at.desc()).offset(skip).limit(limit).all()
 
-def get_deployment(db: Session, deployment_id: int) -> Optional[models.Deployment]:
+def get_deployment(db: Session, deployment_id: int):
     return db.query(models.Deployment).filter(models.Deployment.id == deployment_id).first()
 
-def create_deployment(db: Session, deployment: schemas.DeploymentCreate) -> models.Deployment:
-    # Create deployment
-    db_deployment = models.Deployment()
-    
-    # Add applications
+def create_deployment(db: Session, deployment: schemas.DeploymentCreate):
+    db_deployment = models.Deployment(status=models.DeploymentStatus.RUNNING)
+
     applications = db.query(models.Application).filter(
         models.Application.id.in_(deployment.application_ids)
     ).all()
-    db_deployment.applications = applications
-    
-    # Add servers
-    servers = db.query(models.Server).filter(
-        models.Server.id.in_(deployment.server_ids)
+    agents = db.query(models.Agent).filter(
+        models.Agent.id.in_(deployment.agent_ids)
     ).all()
-    db_deployment.servers = servers
-    
+
+    db_deployment.applications = applications
+    db_deployment.agents = agents
     db.add(db_deployment)
+    db.flush()
+
+    # Create one Job per agent x application combination
+    for agent in agents:
+        for application in applications:
+            job = models.Job(
+                deployment_id=db_deployment.id,
+                agent_id=agent.id,
+                application_id=application.id,
+                status=models.JobStatus.PENDING
+            )
+            db.add(job)
+
     db.commit()
     db.refresh(db_deployment)
     return db_deployment
 
-def update_deployment_status(
-    db: Session, 
-    deployment_id: int, 
-    status: models.DeploymentStatus,
-    logs: str = "",
-    error_message: str = None
-) -> Optional[models.Deployment]:
-    db_deployment = get_deployment(db, deployment_id)
-    if db_deployment:
-        db_deployment.status = status
-        if logs:
-            db_deployment.logs += logs + "\n"
-        if error_message:
-            db_deployment.error_message = error_message
-        if status in [models.DeploymentStatus.SUCCESS, models.DeploymentStatus.FAILED]:
-            from datetime import datetime
-            db_deployment.completed_at = datetime.utcnow()
-        db.commit()
-        db.refresh(db_deployment)
-    return db_deployment
-
-# Dashboard Stats
-def get_dashboard_stats(db: Session) -> schemas.DashboardStats:
-    total_servers = db.query(models.Server).count()
+# Dashboard
+def get_dashboard_stats(db: Session):
+    total_agents = db.query(models.Agent).count()
     total_applications = db.query(models.Application).count()
     total_deployments = db.query(models.Deployment).count()
-    
     recent_deployments = db.query(models.Deployment).order_by(
         models.Deployment.started_at.desc()
     ).limit(5).all()
-    
-    # Calculate success rate
     success_count = db.query(models.Deployment).filter(
         models.Deployment.status == models.DeploymentStatus.SUCCESS
     ).count()
-    
     success_rate = (success_count / total_deployments * 100) if total_deployments > 0 else 0
-    
     return schemas.DashboardStats(
-        total_servers=total_servers,
+        total_agents=total_agents,
         total_applications=total_applications,
         total_deployments=total_deployments,
         recent_deployments=recent_deployments,

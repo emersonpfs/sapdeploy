@@ -1,11 +1,11 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Package, Server, Rocket, Settings } from 'lucide-react';
+import { Home, Package, Bot, Rocket, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: Home },
   { name: 'Applications', href: '/applications', icon: Package },
-  { name: 'Servers', href: '/servers', icon: Server },
+  { name: 'Agents', href: '/agents', icon: Bot },
   { name: 'Deployments', href: '/deployments', icon: Rocket },
 ];
 

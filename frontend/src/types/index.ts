@@ -1,6 +1,7 @@
 export type OSType = 'linux' | 'windows';
-
 export type DeploymentStatus = 'pending' | 'running' | 'success' | 'failed';
+export type AgentStatus = 'online' | 'offline';
+export type JobStatus = 'pending' | 'running' | 'success' | 'failed';
 
 export interface Application {
   id: number;
@@ -15,15 +16,37 @@ export interface Application {
   updated_at: string;
 }
 
-export interface Server {
+export interface Agent {
   id: number;
-  hostname: string;
-  ip_address: string;
-  os_type: OSType;
-  username: string;
-  port: number;
+  name: string;
+  hostname?: string;
+  ip_address?: string;
+  os_type?: string;
+  status: AgentStatus;
+  last_seen?: string;
   created_at: string;
-  updated_at: string;
+}
+
+export interface AgentRegisterResponse {
+  id: number;
+  name: string;
+  token: string;
+  install_command_linux: string;
+  install_command_windows: string;
+}
+
+export interface Job {
+  id: number;
+  deployment_id: number;
+  agent_id: number;
+  application_id: number;
+  status: JobStatus;
+  logs: string;
+  created_at: string;
+  started_at?: string;
+  completed_at?: string;
+  error_message?: string;
+  application: Application;
 }
 
 export interface Deployment {
@@ -34,11 +57,12 @@ export interface Deployment {
   completed_at?: string;
   error_message?: string;
   applications: Application[];
-  servers: Server[];
+  agents: Agent[];
+  jobs: Job[];
 }
 
 export interface DashboardStats {
-  total_servers: number;
+  total_agents: number;
   total_applications: number;
   total_deployments: number;
   recent_deployments: Deployment[];
@@ -55,17 +79,7 @@ export interface ApplicationCreate {
   install_parameters?: string;
 }
 
-export interface ServerCreate {
-  hostname: string;
-  ip_address: string;
-  os_type: OSType;
-  username: string;
-  password?: string;
-  ssh_key_content?: string;
-  port: number;
-}
-
 export interface DeploymentCreate {
   application_ids: number[];
-  server_ids: number[];
+  agent_ids: number[];
 }

@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { getDashboardStats } from '@/lib/api';
-import { Server, Package, Rocket, TrendingUp } from 'lucide-react';
+import { Bot, Package, Rocket, TrendingUp } from 'lucide-react';
 import { formatDate, getStatusColor } from '@/lib/utils';
 
 export default function Dashboard() {
@@ -16,9 +16,9 @@ export default function Dashboard() {
 
   const statCards = [
     {
-      title: 'Total Servers',
-      value: stats?.total_servers || 0,
-      icon: Server,
+      title: 'Total Agents',
+      value: stats?.total_agents || 0,
+      icon: Bot,
       color: 'text-blue-600',
     },
     {
@@ -95,7 +95,7 @@ export default function Dashboard() {
                       </span>
                     </div>
                     <p className="mt-1 text-xs text-slate-500">
-                      Deployed to: {deployment.servers.map((srv) => srv.hostname).join(', ')}
+                      Deployed to: {deployment.agents.map((agent) => agent.name).join(', ')}
                     </p>
                   </div>
                   <div className="text-sm text-slate-500">{formatDate(deployment.started_at)}</div>
