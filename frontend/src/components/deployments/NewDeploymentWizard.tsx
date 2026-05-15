@@ -7,7 +7,7 @@ import type { Application, Agent } from '@/types';
 import {
   Rocket, ChevronRight, ChevronLeft, CheckCircle2,
   Package, Bot, ClipboardList, Plus, X,
-  ArrowUp, ArrowDown, GripVertical,
+  ArrowUp, ArrowDown,
 } from 'lucide-react';
 
 interface Props {

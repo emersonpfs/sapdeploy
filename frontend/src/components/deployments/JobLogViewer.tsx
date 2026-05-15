@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { getDeployment } from '@/lib/api';
 import type { Job } from '@/types';
-import { Terminal, CheckCircle2, XCircle, Clock, Loader2, X } from 'lucide-react';
+import { Terminal, CheckCircle2, XCircle, Clock, Loader2 } from 'lucide-react';
 
 interface Props {
   deploymentId: number;
@@ -66,9 +66,10 @@ export function JobLogViewer({ deploymentId, onClose }: Props) {
   const { data: deployment } = useQuery({
     queryKey: ['deployment', deploymentId],
     queryFn: async () => (await getDeployment(deploymentId)).data,
-    refetchInterval: (data) => {
+    refetchInterval: (query) => {
+      const data = query.state.data;
       if (!data) return 2000;
-      const active = data.jobs.some(j => j.status === 'pending' || j.status === 'running');
+      const active = data.jobs.some((j: { status: string }) => j.status === 'pending' || j.status === 'running');
       return active ? 2000 : false;
     },
   });
