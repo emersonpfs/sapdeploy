@@ -31,6 +31,7 @@ type PendingJob struct {
 	ApplicationName   string `json:"application_name"`
 	InstallCommand    string `json:"install_command"`
 	InstallParameters string `json:"install_parameters"`
+	IsConsole         bool   `json:"is_console"`
 }
 
 type LogAppend struct {
@@ -131,11 +132,15 @@ func updateStatus(jobID int, status string, errMsg string) {
 }
 
 func executeJob(job *PendingJob) {
-	log.Printf("Executing job %d: %s", job.ID, job.ApplicationName)
+	if job.IsConsole {
+		log.Printf("Console job %d: %s", job.ID, job.InstallCommand)
+	} else {
+		log.Printf("Executing job %d: %s", job.ID, job.ApplicationName)
+	}
 	updateStatus(job.ID, "running", "")
 
 	command := job.InstallCommand
-	if job.InstallParameters != "" {
+	if !job.IsConsole && job.InstallParameters != "" {
 		command = command + " " + job.InstallParameters
 	}
 

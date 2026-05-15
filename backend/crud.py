@@ -105,9 +105,26 @@ def update_job_status(db: Session, job: models.Job, status: models.JobStatus, er
         job.error_message = error_message
     db.commit()
     db.refresh(job)
-    # Check if all jobs in deployment are done, update deployment status
-    _update_deployment_status(db, job.deployment_id)
+    if job.deployment_id:
+        _update_deployment_status(db, job.deployment_id)
     return job
+
+def create_exec_job(db: Session, agent_id: int, command: str) -> models.Job:
+    job = models.Job(
+        agent_id=agent_id,
+        custom_command=command,
+        status=models.JobStatus.PENDING
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    return job
+
+def get_console_jobs(db: Session, agent_id: int, limit: int = 50) -> list:
+    return db.query(models.Job).filter(
+        models.Job.agent_id == agent_id,
+        models.Job.custom_command.isnot(None)
+    ).order_by(models.Job.created_at.desc()).limit(limit).all()
 
 def _update_deployment_status(db: Session, deployment_id: int):
     deployment = db.query(models.Deployment).filter(models.Deployment.id == deployment_id).first()

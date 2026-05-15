@@ -79,9 +79,10 @@ class Deployment(Base):
 class Job(Base):
     __tablename__ = "jobs"
     id = Column(Integer, primary_key=True, index=True)
-    deployment_id = Column(Integer, ForeignKey("deployments.id"))
+    deployment_id = Column(Integer, ForeignKey("deployments.id"), nullable=True)
     agent_id = Column(Integer, ForeignKey("agents.id"))
-    application_id = Column(Integer, ForeignKey("applications.id"))
+    application_id = Column(Integer, ForeignKey("applications.id"), nullable=True)
+    custom_command = Column(Text, nullable=True)   # for ad-hoc console exec
     status = Column(Enum(JobStatus), default=JobStatus.PENDING)
     logs = Column(Text, default="")
     created_at = Column(DateTime, default=datetime.utcnow)

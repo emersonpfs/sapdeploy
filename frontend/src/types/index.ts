@@ -83,3 +83,14 @@ export interface DeploymentCreate {
   application_ids: number[];
   agent_ids: number[];
 }
+
+export interface ConsoleJob {
+  id: number;
+  command: string;
+  status: JobStatus;
+  logs: string;
+  created_at: string;
+  started_at?: string;
+  completed_at?: string;
+  error_message?: string;
+}

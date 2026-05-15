@@ -6,8 +6,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { getAgents, createAgent, deleteAgent } from '@/lib/api';
-import type { AgentRegisterResponse } from '@/types';
-import { Plus, Trash2, Copy, CheckCircle, Circle, Download } from 'lucide-react';
+import type { Agent, AgentRegisterResponse } from '@/types';
+import { Plus, Trash2, Copy, CheckCircle, Circle, Download, Terminal } from 'lucide-react';
+import { AgentConsole } from '@/components/agents/AgentConsole';
 
 const PLATFORMS = [
   { id: 'linux-amd64',   label: 'Linux',         arch: 'x86_64',  icon: '🐧' },
@@ -35,6 +36,7 @@ export default function Agents() {
   const [showInstallDialog, setShowInstallDialog] = useState(false);
   const [newAgentName, setNewAgentName] = useState('');
   const [installInfo, setInstallInfo] = useState<AgentRegisterResponse | null>(null);
+  const [consoleAgent, setConsoleAgent] = useState<Agent | null>(null);
 
   const { data: agents = [], isLoading } = useQuery({
     queryKey: ['agents'],
@@ -149,8 +151,15 @@ export default function Agents() {
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
                   <span className="text-sm text-slate-400">Last seen: {formatLastSeen(agent.last_seen)}</span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setConsoleAgent(agent)}
+                  >
+                    <Terminal className="mr-1.5 h-4 w-4" /> Console
+                  </Button>
                   <Button
                     variant="outline"
                     size="sm"
@@ -193,6 +202,11 @@ export default function Agents() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Agent Console */}
+      {consoleAgent && (
+        <AgentConsole agent={consoleAgent} onClose={() => setConsoleAgent(null)} />
+      )}
 
       {/* Install Instructions Dialog */}
       <Dialog open={showInstallDialog} onOpenChange={setShowInstallDialog}>

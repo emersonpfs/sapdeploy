@@ -98,6 +98,58 @@ def download_agent(platform: str):
         media_type="application/octet-stream"
     )
 
+@app.post("/api/agents/{agent_id}/exec", response_model=schemas.ConsoleJobOut, status_code=201)
+def exec_command(agent_id: int, body: schemas.ExecCommand, db: Session = Depends(get_db)):
+    """Send an ad-hoc command to an agent via the console."""
+    agent = crud.get_agent(db, agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    job = crud.create_exec_job(db, agent_id, body.command)
+    return schemas.ConsoleJobOut(
+        id=job.id,
+        command=body.command,
+        status=job.status,
+        logs=job.logs,
+        created_at=job.created_at,
+        started_at=job.started_at,
+        completed_at=job.completed_at,
+        error_message=job.error_message,
+    )
+
+@app.get("/api/agents/{agent_id}/console", response_model=list[schemas.ConsoleJobOut])
+def get_console_jobs(agent_id: int, db: Session = Depends(get_db)):
+    """Get recent console (ad-hoc) jobs for an agent."""
+    jobs = crud.get_console_jobs(db, agent_id)
+    return [
+        schemas.ConsoleJobOut(
+            id=j.id,
+            command=j.custom_command,
+            status=j.status,
+            logs=j.logs,
+            created_at=j.created_at,
+            started_at=j.started_at,
+            completed_at=j.completed_at,
+            error_message=j.error_message,
+        ) for j in jobs
+    ]
+
+@app.get("/api/jobs/{job_id}", response_model=schemas.ConsoleJobOut)
+def get_job(job_id: int, db: Session = Depends(get_db)):
+    """Get a single job (used to poll console job status)."""
+    job = crud.get_job(db, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return schemas.ConsoleJobOut(
+        id=job.id,
+        command=job.custom_command or (job.application.install_command if job.application else ""),
+        status=job.status,
+        logs=job.logs,
+        created_at=job.created_at,
+        started_at=job.started_at,
+        completed_at=job.completed_at,
+        error_message=job.error_message,
+    )
+
 @app.delete("/api/agents/{agent_id}")
 def delete_agent(agent_id: int, db: Session = Depends(get_db)):
     if not crud.delete_agent(db, agent_id):
@@ -131,11 +183,20 @@ def get_pending_job(
     job = crud.get_pending_job_for_agent(db, agent.id)
     if not job:
         return None
+    if job.custom_command:
+        return schemas.PendingJob(
+            id=job.id,
+            application_name="console",
+            install_command=job.custom_command,
+            install_parameters=None,
+            is_console=True
+        )
     return schemas.PendingJob(
         id=job.id,
         application_name=job.application.name,
         install_command=job.application.install_command,
-        install_parameters=job.application.install_parameters
+        install_parameters=job.application.install_parameters,
+        is_console=False
     )
 
 @app.post("/api/agent/jobs/{job_id}/logs")

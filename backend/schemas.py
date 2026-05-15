@@ -78,6 +78,22 @@ class PendingJob(BaseModel):
     application_name: str
     install_command: str
     install_parameters: Optional[str] = None
+    is_console: bool = False
+
+class ExecCommand(BaseModel):
+    command: str
+
+class ConsoleJobOut(BaseModel):
+    id: int
+    command: str
+    status: JobStatus
+    logs: str
+    created_at: datetime
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    error_message: Optional[str] = None
+    class Config:
+        from_attributes = True
 
 class JobLogAppend(BaseModel):
     logs: str
