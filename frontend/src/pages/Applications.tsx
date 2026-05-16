@@ -4,14 +4,23 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { getApplications, createApplication, updateApplication } from '@/lib/api';
 import { Package, Plus } from 'lucide-react';
-import { ApplicationForm } from '@/components/applications/ApplicationForm';
 import { ApplicationList } from '@/components/applications/ApplicationList';
-import type { Application, ApplicationCreate } from '@/types';
+import { AppTypeSelector } from '@/components/applications/AppTypeSelector';
+import { HanaForm } from '@/components/applications/forms/HanaForm';
+import { SqlServerForm } from '@/components/applications/forms/SqlServerForm';
+import { SapBoForm } from '@/components/applications/forms/SapBoForm';
+import { SapBoSlForm } from '@/components/applications/forms/SapBoSlForm';
+import { B1ifForm } from '@/components/applications/forms/B1ifForm';
+import { WindowsAppForm } from '@/components/applications/forms/WindowsAppForm';
+import type { Application, ApplicationCreate, AppType } from '@/types';
 
 export default function Applications() {
-  const [formOpen, setFormOpen] = useState(false);
-  const [editingApp, setEditingApp] = useState<Application | undefined>(undefined);
   const queryClient = useQueryClient();
+
+  // Flow state
+  const [showTypeSelector, setShowTypeSelector] = useState(false);
+  const [activeType, setActiveType] = useState<AppType | null>(null);
+  const [editingApp, setEditingApp] = useState<Application | undefined>(undefined);
 
   const { data: applications = [], isLoading } = useQuery({
     queryKey: ['applications'],
@@ -22,8 +31,7 @@ export default function Applications() {
     mutationFn: (data: ApplicationCreate) => createApplication(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['applications'] });
-      setFormOpen(false);
-      setEditingApp(undefined);
+      closeAll();
     },
   });
 
@@ -32,10 +40,27 @@ export default function Applications() {
       updateApplication(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['applications'] });
-      setFormOpen(false);
-      setEditingApp(undefined);
+      closeAll();
     },
   });
+
+  const closeAll = () => {
+    setShowTypeSelector(false);
+    setActiveType(null);
+    setEditingApp(undefined);
+  };
+
+  const handleNewApp = () => setShowTypeSelector(true);
+
+  const handleTypeSelect = (type: AppType) => {
+    setShowTypeSelector(false);
+    setActiveType(type);
+  };
+
+  const handleEdit = (app: Application) => {
+    setEditingApp(app);
+    setActiveType(app.app_type ?? 'generic');
+  };
 
   const handleSubmit = (data: ApplicationCreate) => {
     if (editingApp) {
@@ -45,14 +70,14 @@ export default function Applications() {
     }
   };
 
-  const handleEdit = (app: Application) => {
-    setEditingApp(app);
-    setFormOpen(true);
-  };
+  const isSubmitting = createMutation.isPending || updateMutation.isPending;
 
-  const handleNewApp = () => {
-    setEditingApp(undefined);
-    setFormOpen(true);
+  const formProps = {
+    open: true,
+    onBack: () => { setActiveType(null); setShowTypeSelector(true); },
+    onClose: closeAll,
+    onSubmit: handleSubmit,
+    isLoading: isSubmitting,
   };
 
   return (
@@ -60,32 +85,26 @@ export default function Applications() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-50">
-            Aplicações
-          </h1>
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-50">Aplicações</h1>
           <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
             Gerencie o catálogo de aplicações disponíveis para deployment
           </p>
         </div>
         <Button onClick={handleNewApp} size="lg">
-          <Plus className="mr-2 h-5 w-5" />
-          Nova Aplicação
+          <Plus className="mr-2 h-5 w-5" /> Nova Aplicação
         </Button>
       </div>
 
-      {/* Loading State */}
       {isLoading && (
         <div className="flex items-center justify-center py-12">
           <p className="text-slate-500">Carregando aplicações...</p>
         </div>
       )}
 
-      {/* Applications List */}
       {!isLoading && applications.length > 0 && (
         <ApplicationList applications={applications} onEdit={handleEdit} />
       )}
 
-      {/* Empty State */}
       {!isLoading && applications.length === 0 && (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
@@ -97,24 +116,38 @@ export default function Applications() {
               Comece adicionando sua primeira aplicação ao catálogo
             </p>
             <Button onClick={handleNewApp}>
-              <Plus className="mr-2 h-4 w-4" />
-              Criar Primeira Aplicação
+              <Plus className="mr-2 h-4 w-4" /> Criar Primeira Aplicação
             </Button>
           </CardContent>
         </Card>
       )}
 
-      {/* Application Form Dialog */}
-      <ApplicationForm
-        open={formOpen}
-        onOpenChange={(open) => {
-          setFormOpen(open);
-          if (!open) setEditingApp(undefined);
-        }}
-        onSubmit={handleSubmit}
-        application={editingApp}
-        isLoading={createMutation.isPending || updateMutation.isPending}
+      {/* Step 1: type selector */}
+      <AppTypeSelector
+        open={showTypeSelector}
+        onSelect={handleTypeSelect}
+        onClose={closeAll}
       />
+
+      {/* Step 2: specific forms */}
+      {activeType === 'hana' && (
+        <HanaForm {...formProps} application={editingApp} />
+      )}
+      {activeType === 'sqlserver' && (
+        <SqlServerForm {...formProps} application={editingApp} />
+      )}
+      {activeType === 'sapbo' && (
+        <SapBoForm {...formProps} application={editingApp} />
+      )}
+      {activeType === 'sapbosl' && (
+        <SapBoSlForm {...formProps} application={editingApp} />
+      )}
+      {activeType === 'b1if' && (
+        <B1ifForm {...formProps} application={editingApp} />
+      )}
+      {activeType === 'windows' && (
+        <WindowsAppForm {...formProps} application={editingApp} />
+      )}
     </div>
   );
 }

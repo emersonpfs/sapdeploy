@@ -36,10 +36,19 @@ deployment_agents = Table(
     Column('agent_id', Integer, ForeignKey('agents.id'))
 )
 
+class ApplicationVariable(Base):
+    __tablename__ = "application_variables"
+    id = Column(Integer, primary_key=True, index=True)
+    application_id = Column(Integer, ForeignKey("applications.id"), nullable=False)
+    key = Column(String, nullable=False)
+    value = Column(Text, nullable=False)
+    application = relationship("Application", back_populates="variables")
+
 class Application(Base):
     __tablename__ = "applications"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, index=True)
+    app_type = Column(String, nullable=True, default="generic")
     version = Column(String)
     os_type = Column(Enum(OSType))
     installer_url = Column(String, nullable=True)
@@ -48,6 +57,7 @@ class Application(Base):
     install_parameters = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    variables = relationship("ApplicationVariable", back_populates="application", cascade="all, delete-orphan")
     deployments = relationship("Deployment", secondary=deployment_applications, back_populates="applications")
 
 class Agent(Base):
@@ -63,15 +73,6 @@ class Agent(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     jobs = relationship("Job", back_populates="agent")
     deployments = relationship("Deployment", secondary=deployment_agents, back_populates="agents")
-    variables = relationship("AgentVariable", back_populates="agent", cascade="all, delete-orphan")
-
-class AgentVariable(Base):
-    __tablename__ = "agent_variables"
-    id = Column(Integer, primary_key=True, index=True)
-    agent_id = Column(Integer, ForeignKey("agents.id"), nullable=False)
-    key = Column(String, nullable=False)
-    value = Column(Text, nullable=False)
-    agent = relationship("Agent", back_populates="variables")
 
 class Deployment(Base):
     __tablename__ = "deployments"
@@ -91,7 +92,7 @@ class Job(Base):
     deployment_id = Column(Integer, ForeignKey("deployments.id"), nullable=True)
     agent_id = Column(Integer, ForeignKey("agents.id"))
     application_id = Column(Integer, ForeignKey("applications.id"), nullable=True)
-    custom_command = Column(Text, nullable=True)   # for ad-hoc console exec
+    custom_command = Column(Text, nullable=True)
     status = Column(Enum(JobStatus), default=JobStatus.PENDING)
     logs = Column(Text, default="")
     created_at = Column(DateTime, default=datetime.utcnow)

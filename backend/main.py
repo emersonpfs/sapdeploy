@@ -156,23 +156,6 @@ def delete_agent(agent_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Agent not found")
     return {"message": "Deleted"}
 
-@app.get("/api/agents/{agent_id}/variables", response_model=list[schemas.AgentVariableOut])
-def list_agent_variables(agent_id: int, db: Session = Depends(get_db)):
-    return crud.get_agent_variables(db, agent_id)
-
-@app.post("/api/agents/{agent_id}/variables", response_model=schemas.AgentVariableOut, status_code=201)
-def set_agent_variable(agent_id: int, body: schemas.AgentVariableCreate, db: Session = Depends(get_db)):
-    agent = crud.get_agent(db, agent_id)
-    if not agent:
-        raise HTTPException(status_code=404, detail="Agent not found")
-    return crud.upsert_agent_variable(db, agent_id, body.key.strip().upper(), body.value)
-
-@app.delete("/api/agents/{agent_id}/variables/{variable_id}")
-def delete_agent_variable(agent_id: int, variable_id: int, db: Session = Depends(get_db)):
-    if not crud.delete_agent_variable(db, variable_id, agent_id):
-        raise HTTPException(status_code=404, detail="Variable not found")
-    return {"message": "Deleted"}
-
 # ==================== Agent API (called by agent binary) ====================
 
 def get_agent_from_token(x_agent_token: Optional[str] = Header(None), db: Session = Depends(get_db)):

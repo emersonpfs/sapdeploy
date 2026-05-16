@@ -2,25 +2,27 @@ export type OSType = 'linux' | 'windows';
 export type DeploymentStatus = 'pending' | 'running' | 'success' | 'failed';
 export type AgentStatus = 'online' | 'offline';
 export type JobStatus = 'pending' | 'running' | 'success' | 'failed';
+export type AppType = 'hana' | 'sqlserver' | 'sapbo' | 'sapbosl' | 'b1if' | 'windows' | 'generic';
+
+export interface ApplicationVariable {
+  id?: number;
+  key: string;
+  value: string;
+}
 
 export interface Application {
   id: number;
   name: string;
+  app_type: AppType;
   version: string;
   os_type: OSType;
   installer_url?: string;
   description?: string;
   install_command: string;
   install_parameters?: string;
+  variables: ApplicationVariable[];
   created_at: string;
   updated_at: string;
-}
-
-export interface AgentVariable {
-  id: number;
-  agent_id: number;
-  key: string;
-  value: string;
 }
 
 export interface Agent {
@@ -32,7 +34,6 @@ export interface Agent {
   status: AgentStatus;
   last_seen?: string;
   created_at: string;
-  variables: AgentVariable[];
 }
 
 export interface AgentRegisterResponse {
@@ -79,12 +80,14 @@ export interface DashboardStats {
 
 export interface ApplicationCreate {
   name: string;
+  app_type: AppType;
   version: string;
   os_type: OSType;
   installer_url?: string;
   description?: string;
   install_command: string;
   install_parameters?: string;
+  variables: ApplicationVariable[];
 }
 
 export interface DeploymentCreate {

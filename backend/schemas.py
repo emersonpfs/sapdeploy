@@ -3,8 +3,24 @@ from typing import Optional, List
 from datetime import datetime
 from models import OSType, DeploymentStatus, AgentStatus, JobStatus
 
+# ==================== Application Variables ====================
+
+class ApplicationVariableCreate(BaseModel):
+    key: str
+    value: str
+
+class ApplicationVariableOut(BaseModel):
+    id: int
+    key: str
+    value: str
+    class Config:
+        from_attributes = True
+
+# ==================== Applications ====================
+
 class ApplicationBase(BaseModel):
     name: str
+    app_type: Optional[str] = "generic"
     version: str
     os_type: OSType
     installer_url: Optional[str] = None
@@ -13,23 +29,28 @@ class ApplicationBase(BaseModel):
     install_parameters: Optional[str] = None
 
 class ApplicationCreate(ApplicationBase):
-    pass
+    variables: List[ApplicationVariableCreate] = []
 
 class ApplicationUpdate(BaseModel):
     name: Optional[str] = None
+    app_type: Optional[str] = None
     version: Optional[str] = None
     os_type: Optional[OSType] = None
     installer_url: Optional[str] = None
     description: Optional[str] = None
     install_command: Optional[str] = None
     install_parameters: Optional[str] = None
+    variables: Optional[List[ApplicationVariableCreate]] = None
 
 class Application(ApplicationBase):
     id: int
     created_at: datetime
     updated_at: datetime
+    variables: List[ApplicationVariableOut] = []
     class Config:
         from_attributes = True
+
+# ==================== Agents ====================
 
 class AgentCreate(BaseModel):
     name: str
@@ -38,18 +59,6 @@ class AgentHeartbeat(BaseModel):
     hostname: str
     ip_address: str
     os_type: str
-
-class AgentVariableCreate(BaseModel):
-    key: str
-    value: str
-
-class AgentVariableOut(BaseModel):
-    id: int
-    agent_id: int
-    key: str
-    value: str
-    class Config:
-        from_attributes = True
 
 class AgentOut(BaseModel):
     id: int
@@ -60,7 +69,6 @@ class AgentOut(BaseModel):
     status: AgentStatus
     last_seen: Optional[datetime] = None
     created_at: datetime
-    variables: List["AgentVariableOut"] = []
     class Config:
         from_attributes = True
 
@@ -70,6 +78,8 @@ class AgentRegisterResponse(BaseModel):
     token: str
     install_command_linux: str
     install_command_windows: str
+
+# ==================== Jobs ====================
 
 class JobOut(BaseModel):
     id: int
@@ -115,6 +125,8 @@ class JobStatusUpdate(BaseModel):
     status: JobStatus
     error_message: Optional[str] = None
 
+# ==================== Deployments ====================
+
 class DeploymentCreate(BaseModel):
     application_ids: List[int]
     agent_ids: List[int]
@@ -131,6 +143,8 @@ class Deployment(BaseModel):
     jobs: List[JobOut] = []
     class Config:
         from_attributes = True
+
+# ==================== Dashboard ====================
 
 class DashboardStats(BaseModel):
     total_agents: int

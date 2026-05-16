@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { deleteApplication } from '@/lib/api';
 import { getOSIcon, formatDate } from '@/lib/utils';
-import { Edit2, Trash2, ExternalLink } from 'lucide-react';
+import { Edit2, Trash2, ExternalLink, Variable } from 'lucide-react';
 import type { Application } from '@/types';
 import {
   Dialog,
@@ -96,6 +96,14 @@ export function ApplicationList({ applications, onEdit }: ApplicationListProps) 
                 <div className="text-xs text-slate-500">
                   <span className="font-medium">Parâmetros:</span>{' '}
                   <span className="font-mono">{app.install_parameters}</span>
+                </div>
+              )}
+
+              {/* Variables badge */}
+              {app.variables?.length > 0 && (
+                <div className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400">
+                  <Variable className="h-3 w-3" />
+                  <span>{app.variables.length} variável{app.variables.length > 1 ? 'is' : ''}: {app.variables.map(v => v.key).join(', ')}</span>
                 </div>
               )}
 
