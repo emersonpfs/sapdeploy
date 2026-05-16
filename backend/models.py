@@ -63,6 +63,15 @@ class Agent(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     jobs = relationship("Job", back_populates="agent")
     deployments = relationship("Deployment", secondary=deployment_agents, back_populates="agents")
+    variables = relationship("AgentVariable", back_populates="agent", cascade="all, delete-orphan")
+
+class AgentVariable(Base):
+    __tablename__ = "agent_variables"
+    id = Column(Integer, primary_key=True, index=True)
+    agent_id = Column(Integer, ForeignKey("agents.id"), nullable=False)
+    key = Column(String, nullable=False)
+    value = Column(Text, nullable=False)
+    agent = relationship("Agent", back_populates="variables")
 
 class Deployment(Base):
     __tablename__ = "deployments"

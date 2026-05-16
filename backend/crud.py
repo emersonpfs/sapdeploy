@@ -3,6 +3,7 @@ from typing import List, Optional
 import models
 import schemas
 import uuid
+import re
 from datetime import datetime, timedelta
 
 # Application CRUD
@@ -71,6 +72,49 @@ def delete_agent(db: Session, agent_id: int):
         return True
     return False
 
+# Agent Variable CRUD
+def get_agent_variables(db: Session, agent_id: int) -> list:
+    return db.query(models.AgentVariable).filter(
+        models.AgentVariable.agent_id == agent_id
+    ).order_by(models.AgentVariable.key).all()
+
+def upsert_agent_variable(db: Session, agent_id: int, key: str, value: str) -> models.AgentVariable:
+    existing = db.query(models.AgentVariable).filter(
+        models.AgentVariable.agent_id == agent_id,
+        models.AgentVariable.key == key
+    ).first()
+    if existing:
+        existing.value = value
+        db.commit()
+        db.refresh(existing)
+        return existing
+    var = models.AgentVariable(agent_id=agent_id, key=key, value=value)
+    db.add(var)
+    db.commit()
+    db.refresh(var)
+    return var
+
+def delete_agent_variable(db: Session, variable_id: int, agent_id: int) -> bool:
+    var = db.query(models.AgentVariable).filter(
+        models.AgentVariable.id == variable_id,
+        models.AgentVariable.agent_id == agent_id
+    ).first()
+    if var:
+        db.delete(var)
+        db.commit()
+        return True
+    return False
+
+def interpolate_command(command: str, variables: list) -> str:
+    """Replace {{KEY}} placeholders with agent variable values."""
+    if not command or not variables:
+        return command
+    var_map = {v.key: v.value for v in variables}
+    def replacer(match):
+        key = match.group(1)
+        return var_map.get(key, match.group(0))
+    return re.sub(r'\{\{(\w+)\}\}', replacer, command)
+
 def update_agent_heartbeat(db: Session, agent: models.Agent, heartbeat: schemas.AgentHeartbeat):
     agent.hostname = heartbeat.hostname
     agent.ip_address = heartbeat.ip_address
@@ -83,10 +127,19 @@ def update_agent_heartbeat(db: Session, agent: models.Agent, heartbeat: schemas.
 
 # Job CRUD
 def get_pending_job_for_agent(db: Session, agent_id: int):
-    return db.query(models.Job).filter(
+    job = db.query(models.Job).filter(
         models.Job.agent_id == agent_id,
         models.Job.status == models.JobStatus.PENDING
     ).first()
+    if job:
+        # Attach interpolated commands as transient attributes
+        variables = get_agent_variables(db, agent_id)
+        if job.custom_command:
+            job._interpolated_command = interpolate_command(job.custom_command, variables)
+        elif job.application:
+            job._interpolated_install_command = interpolate_command(job.application.install_command, variables)
+            job._interpolated_install_parameters = interpolate_command(job.application.install_parameters or "", variables)
+    return job
 
 def get_job(db: Session, job_id: int):
     return db.query(models.Job).filter(models.Job.id == job_id).first()

@@ -1,7 +1,7 @@
 import axios from 'axios';
 import type {
   Application, ApplicationCreate,
-  Agent, AgentRegisterResponse,
+  Agent, AgentRegisterResponse, AgentVariable,
   Deployment, DeploymentCreate,
   DashboardStats, ConsoleJob,
 } from '@/types';
@@ -27,6 +27,12 @@ export const execCommand = (agentId: number, command: string) =>
 export const getConsoleJobs = (agentId: number) =>
   api.get<ConsoleJob[]>(`/agents/${agentId}/console`);
 export const getJob = (jobId: number) => api.get<ConsoleJob>(`/jobs/${jobId}`);
+export const getAgentVariables = (agentId: number) =>
+  api.get<AgentVariable[]>(`/agents/${agentId}/variables`);
+export const setAgentVariable = (agentId: number, key: string, value: string) =>
+  api.post<AgentVariable>(`/agents/${agentId}/variables`, { key, value });
+export const deleteAgentVariable = (agentId: number, variableId: number) =>
+  api.delete(`/agents/${agentId}/variables/${variableId}`);
 
 // Deployments
 export const getDeployments = () => api.get<Deployment[]>('/deployments');

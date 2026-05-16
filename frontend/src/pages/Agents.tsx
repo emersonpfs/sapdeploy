@@ -7,8 +7,9 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { getAgents, createAgent, deleteAgent } from '@/lib/api';
 import type { Agent, AgentRegisterResponse } from '@/types';
-import { Plus, Trash2, Copy, CheckCircle, Circle, Download, Terminal } from 'lucide-react';
+import { Plus, Trash2, Copy, CheckCircle, Circle, Download, Terminal, Variable } from 'lucide-react';
 import { AgentConsole } from '@/components/agents/AgentConsole';
+import { AgentVariables } from '@/components/agents/AgentVariables';
 
 const PLATFORMS = [
   { id: 'linux-amd64',   label: 'Linux',         arch: 'x86_64',  icon: '🐧' },
@@ -37,6 +38,7 @@ export default function Agents() {
   const [newAgentName, setNewAgentName] = useState('');
   const [installInfo, setInstallInfo] = useState<AgentRegisterResponse | null>(null);
   const [consoleAgent, setConsoleAgent] = useState<Agent | null>(null);
+  const [variablesAgent, setVariablesAgent] = useState<Agent | null>(null);
 
   const { data: agents = [], isLoading } = useQuery({
     queryKey: ['agents'],
@@ -156,6 +158,19 @@ export default function Agents() {
                   <Button
                     variant="outline"
                     size="sm"
+                    onClick={() => setVariablesAgent(agent)}
+                  >
+                    <Variable className="mr-1.5 h-4 w-4" />
+                    Variables
+                    {agent.variables?.length > 0 && (
+                      <span className="ml-1.5 bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 text-xs font-semibold px-1.5 py-0.5 rounded-full">
+                        {agent.variables.length}
+                      </span>
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={() => setConsoleAgent(agent)}
                   >
                     <Terminal className="mr-1.5 h-4 w-4" /> Console
@@ -202,6 +217,11 @@ export default function Agents() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Agent Variables */}
+      {variablesAgent && (
+        <AgentVariables agent={variablesAgent} onClose={() => setVariablesAgent(null)} />
+      )}
 
       {/* Agent Console */}
       {consoleAgent && (

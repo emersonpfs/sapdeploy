@@ -39,6 +39,18 @@ class AgentHeartbeat(BaseModel):
     ip_address: str
     os_type: str
 
+class AgentVariableCreate(BaseModel):
+    key: str
+    value: str
+
+class AgentVariableOut(BaseModel):
+    id: int
+    agent_id: int
+    key: str
+    value: str
+    class Config:
+        from_attributes = True
+
 class AgentOut(BaseModel):
     id: int
     name: str
@@ -48,6 +60,7 @@ class AgentOut(BaseModel):
     status: AgentStatus
     last_seen: Optional[datetime] = None
     created_at: datetime
+    variables: List["AgentVariableOut"] = []
     class Config:
         from_attributes = True
 

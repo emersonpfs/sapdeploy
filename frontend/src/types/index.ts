@@ -16,6 +16,13 @@ export interface Application {
   updated_at: string;
 }
 
+export interface AgentVariable {
+  id: number;
+  agent_id: number;
+  key: string;
+  value: string;
+}
+
 export interface Agent {
   id: number;
   name: string;
@@ -25,6 +32,7 @@ export interface Agent {
   status: AgentStatus;
   last_seen?: string;
   created_at: string;
+  variables: AgentVariable[];
 }
 
 export interface AgentRegisterResponse {
