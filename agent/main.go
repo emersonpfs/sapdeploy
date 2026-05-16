@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 	"time"
 )
 
@@ -104,11 +105,15 @@ func pollJob() *PendingJob {
 		return nil
 	}
 	data, err := io.ReadAll(resp.Body)
-	if err != nil || string(data) == "null" || len(data) == 0 {
+	if err != nil || len(data) == 0 {
+		return nil
+	}
+	trimmed := strings.TrimSpace(string(data))
+	if trimmed == "null" || trimmed == "" {
 		return nil
 	}
 	var job PendingJob
-	if err := json.Unmarshal(data, &job); err != nil {
+	if err := json.Unmarshal(data, &job); err != nil || job.ID == 0 {
 		return nil
 	}
 	return &job
